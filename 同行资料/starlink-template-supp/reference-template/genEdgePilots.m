@@ -1,0 +1,213 @@
+function [edgePilotMatrix, pilotSubcarrierIndices] = genEdgePilots()
+% genEdgePilots : Generates the Starlink Ku-band downlink edge pilots.
+%
+% The edge pilots are bands of 4QAM symbols located at the channel
+% boundaries that repeat identically across all frames and all satellites.
+% These are defined by equations (14) and (15) in Qin et al., "Pilots and
+% Other Predictable Elements of the Starlink Ku-Band Downlink".
+%
+% OUTPUTS
+%
+% edgePilotMatrix -------- N-by-Nsf complex matrix of edge pilot symbols.
+%                          Only the pilot subcarrier indices contain
+%                          nonzero values. The first two columns (PSS and
+%                          SSS symbol indices) are zero since edge pilots
+%                          are only defined for i in {2, ..., 301}.
+%
+% pilotSubcarrierIndices - 16-by-1 vector of subcarrier indices where edge
+%                          pilots are located: {489, 490, ..., 496, 529,
+%                          530, ..., 536} (1-indexed MATLAB convention).
+%
+%+==============================================================================+%
+% Reference: Qin et al., "Pilots and Other Predictable Elements of the
+%            Starlink Ku-Band Downlink", Section VI and Appendix A.
+%+==============================================================================+%
+
+starlinkConstants;
+
+% Edge pilot subcarrier indices (paper uses 0-indexed: 488-495, 528-535)
+% Convert to MATLAB 1-indexed: 489-496, 529-536
+pilotSubcarrierIndices = [489:496, 529:536]';
+
+% Hex codes q_pk for each pilot subcarrier k (from Appendix A)
+% These are 150-digit hexadecimal numbers for i in {2, ..., 301}
+hexCodes = getEdgePilotHexCodes();
+
+% Initialize output matrix
+edgePilotMatrix = zeros(sl.N, sl.Nsf);
+
+% Generate edge pilot symbols for each subcarrier
+for kIdx = 1:length(pilotSubcarrierIndices)
+    k = pilotSubcarrierIndices(kIdx);
+    hexStr = hexCodes{kIdx};
+
+    % Convert hex string to base-4 digits
+    base4Digits = hexToBase4(hexStr);
+
+    % Generate pilot symbols for all OFDM symbol indices i in {2, ..., 301}
+    for i = 2:301
+        % s_pik = base4Digits at position corresponding to 4^(301-i)
+        % Index in base4Digits array (1-indexed, MSB first): (i-1)
+        % This maps i=2 to index 1, i=301 to index 300
+        s_pik = base4Digits(i - 1);
+
+        % X_mik = exp(j * pi/2 * (s_pik + 0.5))
+        % This produces 4QAM symbols rotated by 45 degrees
+        X_mik = exp(1j * pi/2 * (s_pik + 0.5));
+
+        % Store in output matrix (add 1 to convert paper's 0-indexed i to
+        % MATLAB's 1-indexed column)
+        edgePilotMatrix(k, i + 1) = X_mik;
+    end
+end
+
+end
+
+%% Helper function: Convert hex string to base-4 digit array
+function base4Digits = hexToBase4(hexStr)
+% Each hex digit (0-F) maps to two base-4 digits (0-3)
+% Hex 0 = 00, 1 = 01, 2 = 02, 3 = 03
+% Hex 4 = 10, 5 = 11, 6 = 12, 7 = 13
+% Hex 8 = 20, 9 = 21, A = 22, B = 23
+% Hex C = 30, D = 31, E = 32, F = 33
+
+numHexDigits = length(hexStr);
+base4Digits = zeros(1, 2 * numHexDigits);
+
+for h = 1:numHexDigits
+    hexDigit = hexStr(h);
+
+    % Convert hex char to decimal value
+    if hexDigit >= '0' && hexDigit <= '9'
+        val = hexDigit - '0';
+    else
+        val = upper(hexDigit) - 'A' + 10;
+    end
+
+    % Convert to two base-4 digits
+    base4Digits(2*h - 1) = floor(val / 4);  % high digit
+    base4Digits(2*h)     = mod(val, 4);     % low digit
+end
+
+end
+
+%% Helper function: Return the hex codes for all 16 pilot subcarriers
+function hexCodes = getEdgePilotHexCodes()
+% Hex codes from Appendix A of Qin et al.
+% Order: k = 488, 489, ..., 495, 528, 529, ..., 535 (0-indexed)
+
+hexCodes = cell(16, 1);
+
+% q_p488
+hexCodes{1} = ['76' '3404' '6DA4' '5F89' '042D' '0117' ...
+               'E163' '167D' '4AE8' '32D8' '5751' '5F3C' 'AD90' '3376' ...
+               '97FB' '8F1C' 'D048' 'EFEF' '559E' 'CD79' '688B' 'CBBF' ...
+               '44D2' 'FA9B' 'DFAE' '639D' 'B5D7' 'B1DD' '2DDC' 'E4EC' ...
+               '9733' 'C0D4' 'DCCF' '3172' 'A0EC' '34CC' '226C' '530E'];
+
+% q_p489
+hexCodes{2} = ['CD' '9AFA' 'A654' '147A' '5FE2' 'B407' ...
+               'B51F' 'FE15' '215B' '3A71' '6241' '3961' '9628' 'A9C3' ...
+               '3E8E' '3A32' 'E514' '6C09' 'BD3E' 'E902' '6CA5' '2032' ...
+               'D7FD' '3896' '0FFC' '5259' '9E9B' '8A7F' '6942' '334B' ...
+               'D4C6' 'D99D' '4331' 'DEF5' '6745' '70B2' '45FB' 'B25F'];
+
+% q_p490
+hexCodes{3} = ['02' '481A' '2B27' '8B88' 'F096' 'C8D1' ...
+               '74D3' '69D0' 'CF67' '81B7' '0EBD' '402D' '6A6F' '4C98' ...
+               '5DA6' '2658' '66A8' '374D' 'C0B3' 'E491' '7146' 'FE32' ...
+               '74CA' '5D61' 'C3F9' 'A31C' 'B812' '5F29' '1155' 'CBD4' ...
+               'F4F8' '4E93' 'C0D8' '54BB' 'C54E' 'E144' '43EC' '2DF8'];
+
+% q_p491
+hexCodes{4} = ['D8' 'DC99' 'C265' '4265' 'B8C3' '2450' ...
+               '114C' '37E2' 'B725' 'A822' 'F105' '4B46' 'F272' '8771' ...
+               '22E4' '7109' 'F113' 'D59E' '37DF' 'F418' 'FEA3' '627C' ...
+               '7A5C' 'C0A9' '3ABA' '0F94' '08E9' '58DF' '4179' 'C4DE' ...
+               '40CE' 'F842' 'D333' '632B' '3E77' 'BEB3' '4B2E' '6045'];
+
+% q_p492
+hexCodes{5} = ['3C' 'C5CA' '83B0' 'D330' '89B1' '4C3B' ...
+               '6AC3' 'D194' '6359' '726B' '4966' 'B2E9' '66BE' '6112' ...
+               '4A5D' '53E2' '2A73' 'EDBE' 'B383' 'A92F' '06CA' '6CAA' ...
+               '8A5B' '1ECE' '6954' '6514' '5E28' '6EEE' '1804' 'CD79' ...
+               'A00C' '84FC' '80C8' '7DE9' 'DF57' '2F9B' '54AE' '798B'];
+
+% q_p493
+hexCodes{6} = ['C7' '7BD5' '9D15' 'C2C9' '17EE' 'C97F' ...
+               'B479' 'B9F0' 'B2BF' '5D2E' 'CCD8' '0248' 'D2AC' '68C8' ...
+               '4CEA' '11BA' 'D18D' '9F6F' '31B6' 'AFD7' '8334' '7943' ...
+               '562E' '2C68' '32EA' '7682' '8FCD' 'AB31' 'EFF6' 'A9A8' ...
+               '8EA4' '8E3A' 'FA62' '5B2F' 'CDA7' 'B99B' '0295' 'E926'];
+
+% q_p494
+hexCodes{7} = ['61' '52EF' '153B' '8511' '0FB0' 'B7E2' ...
+               '4D83' '34B1' 'C419' '6DE8' '72B5' '9876' '7BC3' 'CB4A' ...
+               '4827' 'A09D' '924A' 'A7F5' '7EB9' '46F1' '981D' '036E' ...
+               '3001' '934B' '10C9' 'E22A' 'BB6A' 'F1F0' '47B3' 'A874' ...
+               'CA95' 'E68C' 'BA67' '063F' '605F' 'D05D' '532A' 'AD3C'];
+
+% q_p495
+hexCodes{8} = ['CD' '8CAC' 'F9DE' 'FACD' '2CB9' '8114' ...
+               '39D8' 'B7E1' '6F9E' '09BE' 'D473' '7020' '7150' 'A86D' ...
+               'FE24' 'EA12' '98CC' 'B090' '7F5B' 'AB67' 'D466' '0462' ...
+               'C6B1' '0F74' 'B8D9' 'FA7B' '6F9E' 'C139' '9B30' 'B43A' ...
+               'F622' 'A894' 'B222' '0B6B' '509A' '84AA' 'BB58' 'D023'];
+
+% q_p528
+hexCodes{9} = ['CC' 'BF3A' '1692' '9836' '160C' 'EC6E' ...
+               'B741' '7AE6' 'C37D' 'C1E8' '28CE' 'FB60' 'CE0E' '6C3B' ...
+               '546A' '76B0' 'AE1E' '7BC0' 'E957' '7528' 'B0F7' '8F82' ...
+               'A410' '4EA2' 'C316' 'B945' 'D385' '200C' '7E5A' '1C5B' ...
+               '48F5' 'F9F9' 'AF5C' '4BA9' '20AC' 'A3A5' '99DB' '9974'];
+
+% q_p529
+hexCodes{10} = ['9C' 'F72F' '5F5B' '95CE' '7342' 'C925' ...
+                'CF1A' 'AF45' '7F18' '2C32' '810E' '2F74' '8670' '5D5F' ...
+                'A2D9' 'C892' '3B01' '73FB' '206B' '4604' '5C6F' '162B' ...
+                'B9FF' 'D051' 'DB5E' '5900' 'EFD2' 'DE24' 'D4BB' '3FE8' ...
+                '7DD7' '76F0' '0B56' '13A7' 'D22B' '2821' 'E139' 'A599'];
+
+% q_p530
+hexCodes{11} = ['29' '6319' 'D723' '2101' '8995' '3BB7' ...
+                '30DC' '6046' 'E4EC' '5FB4' '8F97' '18D5' 'B600' 'A015' ...
+                '78CA' 'C315' '9B58' 'EE8A' '3066' '6392' '1FBE' '78EE' ...
+                '7C1E' '8E04' '9B42' '30A1' '4EB4' '9549' '33AB' '64F6' ...
+                '7B39' '6DD6' 'DB12' 'BCBB' '3CCA' '60EA' '79E0' '614B'];
+
+% q_p531
+hexCodes{12} = ['10' '17FB' 'BD3D' '0398' '1EE9' 'F442' ...
+                '4D47' '3B8A' '73E1' '36C7' '7795' '6EAE' 'BD4C' 'A51E' ...
+                '9B70' 'D9F5' 'D106' '57F2' '6859' '5A5C' '3687' 'D2DD' ...
+                '06C9' '8630' 'F817' 'CABE' 'F3EE' '6608' '2235' '0A70' ...
+                'F10A' '29A8' '7402' '12A9' 'CF7E' '7D81' '4D60' 'A69C'];
+
+% q_p532
+hexCodes{13} = ['71' '2EA4' '82B2' '8E96' '676E' '65D0' ...
+                '9994' '9655' '8731' '4F2B' '562D' '0E75' '0FE5' '66E8' ...
+                '9205' 'A8D4' 'DFED' '2C4F' 'AFFC' '5ED1' 'EA6F' 'B63E' ...
+                'C135' '1344' '4006' 'B78A' 'DFB4' 'BDB6' 'CB05' '4706' ...
+                '01C9' 'F8F4' '9014' '2306' '9C9F' 'BD68' 'D292' 'C16F'];
+
+% q_p533
+hexCodes{14} = ['58' '4E9F' '48AC' 'A087' '84E6' '9664' ...
+                '4C78' 'ED96' '84FC' '484F' '32AA' '1B4D' 'A8E9' '5457' ...
+                '358D' 'F89F' 'E8B9' 'D84D' '47F3' '0D3C' 'A2F2' 'DDF0' ...
+                'E76E' '57F1' '4A44' '6753' '26ED' 'CF15' '052C' 'B62B' ...
+                '7DF0' 'EBE6' '2305' '7605' 'CF24' '06E2' '5BD5' '6B3B'];
+
+% q_p534
+hexCodes{15} = ['4A' 'F2EC' 'F329' '83A9' 'E781' '852F' ...
+                '6E90' 'DC6C' 'CE90' '1863' 'F527' 'E038' 'DA22' 'C0CE' ...
+                '02E4' '4FA0' '5637' '18D9' '3E74' '5429' '3962' 'B435' ...
+                '94CC' '2EE4' '27FA' 'E6F1' '5C12' '38D9' 'C85A' 'BC4E' ...
+                '303F' '3AEC' '3404' 'A523' '10CA' 'C037' '8665' 'E19A'];
+
+% q_p535
+hexCodes{16} = ['08' '4AA7' '3DF9' 'F605' '3582' '9A71' ...
+                '6EC9' '4D95' 'AA69' '01B4' '1E81' 'AEF2' '8B03' 'F08C' ...
+                'DE7D' '4542' '5B11' '6400' '9D56' '459C' '4286' 'E269' ...
+                'F4B8' 'EBDB' 'A8BF' '6FC7' '9847' 'B08A' '69F7' '9AF6' ...
+                'E6A7' 'AF05' 'DA50' '4455' 'BA72' '727D' 'D7BE' '7744'];
+
+end

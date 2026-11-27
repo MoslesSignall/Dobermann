@@ -1,0 +1,113 @@
+EXEMPLAR FRAMES DATASET
+=======================
+
+OVERVIEW
+--------
+
+This dataset contains 1009 decoded Starlink Ku-band downlink frames representing
+high-quality OFDM frame data used for template analysis, modulation mapping, and
+signal intelligence research.
+
+Dataset Details:
+  Satellite:     STARLINK-31848
+  Hardware:      v2.0-mini
+  Frame Count:   1009 frames
+  Capture Date:  January 21, 2025
+  Dataset file:  decodedExemplarFrames_20251019T2214.mat
+
+
+DATASET FIELDS
+==============
+
+Primary Signal Data (3D Arrays)
+-------------------------------
+
+yDataDec -- Hard-Decoded Symbols
+  Dimensions:   [1024 x 301 x nFrames]
+  Type:         Complex double
+  Description:  Frequency-domain symbols after demodulation and hard decision
+                decoding. Each symbol is mapped to the nearest constellation point.
+  Indexing:     yDataDec(k+1, i, m+1) where:
+                  k = subcarrier index (0-indexed in paper, 1-indexed in MATLAB)
+                  i = OFDM symbol index within frame (1-301, same in both)
+                  m = frame number (0-indexed in paper, 1-indexed in MATLAB)
+  Notes:        Inactive subcarriers are zero-filled. The PSS (i=0) is a
+                time-domain sequence and is not part of this array; the first
+                column (i=1) is the SSS. Valid data typically on subcarriers 3:1022.
+
+yDataSoft -- Soft-Decoded Symbols
+  Dimensions:   [1024 x 301 x nFrames]
+  Type:         Complex double
+  Description:  Normalized (soft) symbols after phase/timing correction and power
+                normalization, before hard decision. Outer constellation ring lies
+                on the unit circle.
+  Indexing:     Same as yDataDec
+  Use case:     Constellation analysis, SNR estimation, equalizer performance
+
+modEst -- Estimated Modulation Constellations
+  Dimensions:   [301 x nFrames]
+  Type:         Cell array
+  Description:  Estimated constellation points for each OFDM symbol in each frame.
+                Each cell contains a vector of complex constellation values
+                (e.g., QPSK = 4 points, 16-QAM = 16 points).
+  Indexing:     modEst{i, m+1} returns constellation for symbol i of frame m
+  Use case:     Adaptive modulation tracking, modulation classification
+
+
+Per-Frame Metadata (1D Arrays)
+------------------------------
+
+hasTemplate -- Reference Template Indicator
+  Dimensions:   [1 x nFrames]
+  Type:         Logical
+  Description:  Boolean flag indicating whether frame matches the known QPSK
+                template pattern
+  Use case:     Identifying reference frames for synchronization and analysis
+
+SINRs -- Signal Quality
+  Dimensions:   [1 x nFrames]
+  Type:         Double
+  Units:        Decibels (dB)
+  Description:  Signal-to-interference-plus-noise ratio estimated during frame
+                acquisition
+  Typical range: 9-19 dB
+
+betas -- Doppler Shift Estimates
+  Dimensions:   [1 x nFrames]
+  Type:         Double
+  Units:        Fractional frequency offset (ppm when multiplied by 1e6)
+  Description:  Estimated carrier frequency offset due to satellite motion (Doppler)
+  Use case:     Doppler tracking, orbit propagation validation
+
+TOAs or TOAschunk -- Time of Arrival
+  Dimensions:   [1 x nFrames]
+  Type:         Double
+  Units:        Seconds (relative to start of IQ capture)
+  Description:  Estimated arrival time of each frame's first sample
+  Use case:     Timing analysis, pseudorange computation, navigation solutions
+
+
+Processing Configuration
+------------------------
+
+filename -- Source Filename
+  Type:         String
+  Description:  Base name of the source IQ data file (without extension)
+
+validIndices -- Active Subcarriers
+  Type:         Integer vector
+  Typical:      3:1022 (1-indexd)
+  Description:  Subcarrier indices used during decoding (excludes DC, guard bands)
+
+SINR_MINIMUM -- Quality Threshold
+  Type:         Double
+  Units:        Decibels (dB)
+  Typical:      8
+  Description:  Minimum acceptable SINR for frame inclusion in dataset
+
+FRAME_LOAD_MARGIN -- Timing Margin
+  Type:         Double
+  Units:        Fraction of frame period (1/750 s)
+  Typical:      0.25
+  Description:  Safety margin for IQ data loading around each TOA
+

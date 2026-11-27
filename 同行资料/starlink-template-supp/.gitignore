@@ -1,0 +1,16 @@
+# User-specific configuration (not tracked)
+pathRoots_local.m
+
+# MATLAB autosave and temporary files
+*.asv
+*.m~
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# MATLAB cache
+*.mex*
+
+# Dataset files (too large for git)
+*.mat
